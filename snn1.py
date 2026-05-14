@@ -8,6 +8,9 @@ from snntorch import spikegen
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
+import matplotlib
+import matplotlib.pyplot as plt
+import snntorch.spikeplot as splt
 
 #parameters
 batch_size=128
@@ -28,37 +31,47 @@ mnist_train = datasets.MNIST(datapath, train=True, download=True, transform=tran
 #deifning subset of the data
 subset=10
 mnist_train = utils.data_subset(mnist_train, subset)
+# ==========================================
+# KEEP YOUR EXISTING CODE FOR LINES 1 to 34
+# (Imports, data loading, and model.predict)
+# ==========================================
 
-#dataloader
-train_loader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
+print("Plot saved: active_voxel_count.png")
+print("Generating 3D interactive webshow...")
 
+import cortex
+import numpy as np
+import torch
 
-num_steps = 10
-raw_vector = torch.ones(num_steps)*0.5
-rate_coded_vector = torch.bernoulli(raw_vector)
+# 1. Safely convert your predictions into a standard NumPy array
+if torch.is_tensor(preds):
+    preds_np = preds.detach().cpu().numpy()
+else:
+    preds_np = np.array(preds)
 
+# 2. Extract a single frame to plot (if there are multiple time segments)
+if preds_np.ndim > 1:
+    vertex_data_np = preds_np.mean(axis=0) # Shows average activity across segments
+else:
+    vertex_data_np = preds_np
 
-data = iter(train_loader)
-data_it, targets_it = next(data)
+# 3. Set the correct Meta TRIBE v2 Subject Mesh
+subject_name = "fsaverage5"     
 
-spike_data = spikegen.rate(data_it, num_steps=num_steps)
+try:
+    # 4. Create the Pycortex Vertex object (NOT Volume!)
+    # This correctly maps your 1D array of ~20k predictions directly to the cortical surface
+    vertex_obj = cortex.Vertex(vertex_data_np, subject=subject_name)
+    
+    # 5. Launch the viewer
+    print("Starting WebGL server... Open your browser to http://localhost:8080")
+    cortex.webgl.show(vertex_obj, port=8080)
 
-spike_data_sample = spike_data[:, 0, 0]
-
-warnings.filterwarnings(
-    'ignore',
-    message='Unable to import Axes3D.*',
-)
-
-import matplotlib
-
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import snntorch.spikeplot as splt
-fig, ax = plt.subplots()
-anim = splt.animator(spike_data_sample, fig, ax)
-# plt.rcParams['animation.ffmpeg_path'] = 'C:\\path\\to\\your\\ffmpeg.exe'
-
-output_path = Path(__file__).with_name('mnist_animation.html')
-output_path.write_text(anim.to_jshtml(), encoding='utf-8')
-print(f'Saved animation to {output_path}')
+except Exception as e:
+    print(f"\n[ERROR] Pycortex failed to draw the brain: {e}")
+    print("\n[TROUBLESHOOTING]")
+    print("If Pycortex says it still can't find the subject, it means 'fsaverage5' isn't in your Pycortex filestore.")
+    print("Luckily, Meta included a built-in wrapper just for this. You can swap the Pycortex code above with:")
+    print("from tribev2.plotting import PlotBrain")
+    print("plotter = PlotBrain(mesh='fsaverage5')")
+    print("# You can then feed vertex_data_np into plotter to generate the visualization.")
