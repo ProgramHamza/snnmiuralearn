@@ -1,0 +1,12 @@
+video_label,expected_filename,duration_ms,source,source_url,video_url,local_path,status
+amusing-1,amusing-1.mp4,185583.33300000001,Hangover (2009),https://www.imdb.com/title/tt1119646/?ref_=nv_sr_1,https://www.youtube.com/watch?v=xlrqaAjBwS4,,missing
+amusing-2,amusing-2.mp4,173083.33300000001,When Harry Met Sally (1989),https://www.imdb.com/title/tt0098635/?ref_=nv_sr_1,https://www.youtube.com/watch?v=F-bsf2x-aeE,,missing
+bluVid,bluVid.mp4,120000,n.a. -- blue screen, not applicable (n.a.),not applicable,,missing
+boring-1,boring-1.mp4,118666.667,Europe Travel Skills (2013) ,https://www.youtube.com/watch?v=qUHLCobRgaE,https://www.youtube.com/watch?v=qUHLCobRgaE,,missing
+boring-2,boring-2.mp4,160125,Matcha: The way of Tea (2012),https://www.youtube.com/watch?v=IC8zogRPogQ,https://www.youtube.com/watch?v=IC8zogRPogQ,,missing
+endVid,endVid.mp4,120000,n.a. -- blue screen,not applicable,not applicable,,missing
+relaxed-1,relaxed-1.mp4,145125,Relaxing Music with Beach (2011),https://www.youtube.com/watch?v=tnHlB8aQp3Y,https://www.youtube.com/watch?v=tnHlB8aQp3Y,,missing
+relaxed-2,relaxed-2.mp4,146750,Natural World: Zambezi (2012),https://www.imdb.com/title/tt2496558/?ref_=fn_tt_tt_1,http://www.hddocumentary.com/bbc-natural-world-zambezi-2012/,,missing
+scary-1,scary-1.mp4,197000,Shutter (2004),https://www.imdb.com/title/tt0440803/?ref_=nv_sr_2,https://www.youtube.com/watch?v=dVbWL51L4Ms,,missing
+scary-2,scary-2.mp4,143750,Mama (2008),https://www.imdb.com/title/tt1315885/,https://www.youtube.com/watch?v=WRqS6pBC42w,,missing
+startVid,startVid.mp4,101500,Great Barrier Reef (2012),https://www.imdb.com/title/tt2198631/?ref_=ttep_ep2,https://www.dailymotion.com/video/xnkj6a,,missing

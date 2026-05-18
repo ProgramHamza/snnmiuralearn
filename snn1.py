@@ -31,47 +31,111 @@ mnist_train = datasets.MNIST(datapath, train=True, download=True, transform=tran
 #deifning subset of the data
 subset=10
 mnist_train = utils.data_subset(mnist_train, subset)
-# ==========================================
-# KEEP YOUR EXISTING CODE FOR LINES 1 to 34
-# (Imports, data loading, and model.predict)
-# ==========================================
 
-print("Plot saved: active_voxel_count.png")
-print("Generating 3D interactive webshow...")
+#dataloader
+train_loader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
 
-import cortex
-import numpy as np
-import torch
 
-# 1. Safely convert your predictions into a standard NumPy array
-if torch.is_tensor(preds):
-    preds_np = preds.detach().cpu().numpy()
-else:
-    preds_np = np.array(preds)
+num_steps = 10
+raw_vector = torch.ones(num_steps)*0.5
+rate_coded_vector = torch.bernoulli(raw_vector)
 
-# 2. Extract a single frame to plot (if there are multiple time segments)
-if preds_np.ndim > 1:
-    vertex_data_np = preds_np.mean(axis=0) # Shows average activity across segments
-else:
-    vertex_data_np = preds_np
 
-# 3. Set the correct Meta TRIBE v2 Subject Mesh
-subject_name = "fsaverage5"     
+data = iter(train_loader)
+data_it, targets_it = next(data)
 
-try:
-    # 4. Create the Pycortex Vertex object (NOT Volume!)
-    # This correctly maps your 1D array of ~20k predictions directly to the cortical surface
-    vertex_obj = cortex.Vertex(vertex_data_np, subject=subject_name)
-    
-    # 5. Launch the viewer
-    print("Starting WebGL server... Open your browser to http://localhost:8080")
-    cortex.webgl.show(vertex_obj, port=8080)
+spike_data = spikegen.rate(data_it, num_steps=num_steps)
 
-except Exception as e:
-    print(f"\n[ERROR] Pycortex failed to draw the brain: {e}")
-    print("\n[TROUBLESHOOTING]")
-    print("If Pycortex says it still can't find the subject, it means 'fsaverage5' isn't in your Pycortex filestore.")
-    print("Luckily, Meta included a built-in wrapper just for this. You can swap the Pycortex code above with:")
-    print("from tribev2.plotting import PlotBrain")
-    print("plotter = PlotBrain(mesh='fsaverage5')")
-    print("# You can then feed vertex_data_np into plotter to generate the visualization.")
+spike_data_sample = spike_data[:, 0, 0]
+
+warnings.filterwarnings(
+    'ignore',
+    message='Unable to import Axes3D.*',
+)
+
+
+
+
+# plt.figure(facecolor="w")
+# plt.subplot(1,2,1)
+# plt.imshow(spike_data_sample.mean(axis=0).reshape((28,-1)).cpu(), cmap='binary')
+# plt.axis('off')
+# plt.title('Gain = 1')
+
+# spike_data = spikegen.rate(data_it, num_steps=num_steps, gain=0.25)
+# spike_data_sample2 = spike_data[:, 0, 0]
+
+# plt.subplot(1,2,2)
+# plt.imshow(spike_data_sample2.mean(axis=0).reshape((28,-1)).cpu(), cmap='binary')
+# plt.axis('off')
+# plt.title('Gain = 0.25')
+
+# plt.show()
+
+# # Reshape
+# spike_data_sample2 = spike_data_sample2.reshape((num_steps, -1))
+
+# # raster plot
+# fig = plt.figure(facecolor="w", figsize=(10, 5))
+# ax = fig.add_subplot(111)
+# splt.raster(spike_data_sample2, ax, s=1.5, c="black")
+
+# plt.title("Input Layer")
+# plt.xlabel("Time step")
+# plt.ylabel("Neuron Number")
+# plt.show()
+
+def convert_to_time(data, tau=5, threshold=0.01):
+  spike_time = tau * torch.log(data / (data - threshold))
+  print
+  return spike_time
+
+
+data_it_latency = torch.clamp(data_it * 0.3081 + 0.1307, 0.0, 1.0)
+spike_data = spikegen.latency(data_it_latency, num_steps=100, tau=5, threshold=0.01)
+
+fig = plt.figure(facecolor="w", figsize=(10, 5))
+ax = fig.add_subplot(111)
+splt.raster(spike_data[:, 0].reshape(num_steps, -1), ax, s=25, c="black")
+
+plt.title("Input Layer")
+plt.xlabel("Time step")
+plt.ylabel("Neuron Number")
+plt.show()
+
+# optional save
+fig.savefig('destination_path.png', format='png', dpi=300)
+
+# Create a tensor with some fake time-series data
+data = torch.Tensor([0, 1, 0, 2, 8, -20, 20, -5, 0, 1, 0])
+
+# Plot the tensor
+plt.plot(data)
+
+plt.title("Some fake time-series data")
+plt.xlabel("Time step")
+plt.ylabel("Voltage (mV)")
+plt.show()
+
+spike_data = spikegen.delta(data,threshold=4,off_spike=True)
+
+fig = plt.figure(facecolor="w", figsize=(8,1))
+ax = fig.add_subplot(111)
+print(spike_data)
+
+splt.raster(spike_data, ax, c="black")
+
+plt.title("Delta coding")
+plt.xlabel("Time step")
+plt.yticks([])
+plt.xlim(0, len(data))
+plt.show()
+
+import HTML
+
+spike_prob = torch.rand((num_steps, 28, 28), dtype=dtype) * 0.5
+spike_rand = spikegen.rate_conv(spike_prob)
+fig, ax = plt.subplots()
+anim = splt.animator(spike_rand, fig, ax)
+
+HTML(anim.to_html5_video())

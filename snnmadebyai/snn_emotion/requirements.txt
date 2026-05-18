@@ -1,0 +1,8 @@
+torch>=2.2
+spikingjelly>=0.0.0.0.14
+librosa>=0.10
+opencv-python>=4.8
+scikit-image>=0.22
+matplotlib>=3.8
+numpy>=1.24
+soundfile>=0.12
