@@ -1,19 +1,12 @@
-import pandas as pd
-import numpy as np
-import cv2 as cv2
-import matplotlib.pyplot as plt
-
 from glob import glob
-
-import IPython.display as ipd
-from tqdm import tqdm
-
-import subprocess
-from torchvision import transforms
-from PIL import Image
-import torch
-import snntorch.spikegen as spikegen
 from pathlib import Path
+
+import cv2 as cv2
+import pandas as pd
+from PIL import Image
+from torchvision import transforms
+
+import snntorch.spikegen as spikegen
 
 
 class VideoProcessor:
@@ -66,7 +59,63 @@ class VideoProcessor:
         for video_file in video_files[-n_test:]:
             yield video_file
 
+    def resolve_label_path(self, video_path):
+        return str(Path(video_path).with_name('roi_timeseries.parquet'))
+
+    def load_label_table(self, video_path):
+        label_path = Path(self.resolve_label_path(video_path))
+        if not label_path.exists():
+            return None
+
+        label_frame = pd.read_parquet(label_path)
+        expected_columns = {'frame_idx', 'time_sec', 'valence', 'arousal'}
+        missing_columns = expected_columns.difference(label_frame.columns)
+        if missing_columns:
+            missing = ', '.join(sorted(missing_columns))
+            raise ValueError(f'Missing label columns in {label_path}: {missing}')
+
+        return label_frame.sort_values('frame_idx').reset_index(drop=True)
+
+    def iter_labeled_frames(self, video_path, transform=None, frame_step=3, num_steps=1):
+        label_frame = self.load_label_table(video_path)
+        if label_frame is None:
+            raise FileNotFoundError(f'Could not find roi_timeseries.parquet next to {video_path}')
+
+        frame_transform = transform or self.transform
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise FileNotFoundError(f'Could not open video: {video_path}')
+
+        try:
+            for _, row in label_frame.iterrows():
+                frame_idx = int(row['frame_idx'])
+                if frame_idx % frame_step != 0:
+                    continue
+
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                ret, img = cap.read()
+                if not ret:
+                    break
+
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                pil = Image.fromarray(img)
+                processed = frame_transform(pil)
+                spikes = self.spike_tensor(processed, num_steps=num_steps)
+                target = pd.Series({'valence': row['valence'], 'arousal': row['arousal']})
+
+                yield processed, spikes, target, frame_idx, float(row['time_sec'])
+        finally:
+            cap.release()
+
     def load_video_frames(self, video_path, transform=None, frame_step=3, num_steps=1):
+        yield from self.iter_labeled_frames(
+            video_path,
+            transform=transform,
+            frame_step=frame_step,
+            num_steps=num_steps,
+        )
+
+    def iter_video_frames(self, video_path, transform=None, frame_step=3, num_steps=1):
         frame_transform = transform or self.transform
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -74,6 +123,7 @@ class VideoProcessor:
 
         try:
             n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
 
             for frame_idx in range(n_frames):
                 ret, img = cap.read()
@@ -87,8 +137,9 @@ class VideoProcessor:
                 pil = Image.fromarray(img)
                 processed = frame_transform(pil)
                 spikes = self.spike_tensor(processed, num_steps=num_steps)
+                time_sec = frame_idx / fps if fps > 0 else frame_idx / 30.0
 
-                yield processed, spikes
+                yield processed, spikes, frame_idx, time_sec
         finally:
             cap.release()
 
