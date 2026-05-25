@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
+from LIF import plot_cur_mem_spk
+
 
 
 
@@ -34,91 +36,55 @@ spk_rec = []
 
 
 
-def plot_feedforward_spikes(spk_in, spk_hidden, spk_out, title=None, out_path=None):
-    """Plot input, hidden, and output spike rasters as three stacked sections."""
-    layers = [
-        ("Input spikes", spk_in),
-        ("Hidden layer spikes", spk_hidden),
-        ("Output spikes", spk_out),
-    ]
+# layer parameters
+num_inputs = 784
+num_hidden = 1000
+num_outputs = 10
+beta = 0.99
 
-    fig, axes = plt.subplots(
-        len(layers),
-        1,
-        figsize=(10, 7),
-        sharex=True,
-        constrained_layout=True,
-        gridspec_kw={"height_ratios": [1, 1, 0.7]},
-    )
+# initialize layers
+fc1 = nn.Linear(num_inputs, num_hidden)
+lif1 = snn.Leaky(beta=beta)
+fc2 = nn.Linear(num_hidden, num_outputs)
+lif2 = snn.Leaky(beta=beta)
 
-    for ax, (label, spikes) in zip(axes, layers):
-        raster_data = spikes.detach().cpu().reshape(spikes.shape[0], -1)
-        marker_size = 12 if raster_data.shape[1] <= 20 else 1.5
-        splt.raster(raster_data, ax, s=marker_size, c="black", marker="|")
-        ax.set_title(label, loc="left")
-        ax.set_ylabel("Neuron")
-        ax.set_xlim(0, raster_data.shape[0])
+# Initialize hidden states
+mem1 = lif1.init_leaky()
+mem2 = lif2.init_leaky()
 
-    axes[-1].set_xlabel("Time step")
+# record outputs
+mem2_rec = []
+spk1_rec = []
+spk2_rec = []
 
-    if title is not None:
-        fig.suptitle(title)
+spk_in = spikegen.rate_conv(torch.rand((200, 784))).unsqueeze(1)
+# network simulation
+for step in range(num_steps):
+    cur1 = fc1(spk_in[step]) # post-synaptic current <-- spk_in x weight
+    spk1, mem1 = lif1(cur1, mem1) # mem[t+1] <--post-syn current + decayed membrane
+    cur2 = fc2(spk1)
+    spk2, mem2 = lif2(cur2, mem2)
 
-    if out_path is not None:
-        fig.savefig(out_path, dpi=200)
-        print(f"Saved plot to {out_path}")
+    mem2_rec.append(mem2)
+    spk1_rec.append(spk1)
+    spk2_rec.append(spk2)
 
-    plt.show()
-
-
-def run_network():
-    # layer parameters
-    num_inputs = 784
-    num_hidden = 1000
-    num_outputs = 10
-    beta = 0.99
-
-    # initialize layers
-    fc1 = nn.Linear(num_inputs, num_hidden)
-    lif1 = snn.Leaky(beta=beta)
-    fc2 = nn.Linear(num_hidden, num_outputs)
-    lif2 = snn.Leaky(beta=beta)
-
-    # Initialize hidden states
-    mem1 = lif1.init_leaky()
-    mem2 = lif2.init_leaky()
-
-    # record outputs
-    mem2_rec = []
-    spk1_rec = []
-    spk2_rec = []
-
-    spk_in = spikegen.rate_conv(torch.rand((num_steps, num_inputs))).unsqueeze(1)
-
-    # network simulation
-    for step in range(num_steps):
-        cur1 = fc1(spk_in[step]) # post-synaptic current <-- spk_in x weight
-        spk1, mem1 = lif1(cur1, mem1) # mem[t+1] <--post-syn current + decayed membrane
-        cur2 = fc2(spk1)
-        spk2, mem2 = lif2(cur2, mem2)
-
-        mem2_rec.append(mem2)
-        spk1_rec.append(spk1)
-        spk2_rec.append(spk2)
-
-    # convert lists to tensors
-    mem2_rec = torch.stack(mem2_rec)
-    spk1_rec = torch.stack(spk1_rec)
-    spk2_rec = torch.stack(spk2_rec)
-
-    plot_feedforward_spikes(
-        spk_in,
-        spk1_rec,
-        spk2_rec,
-        title="Fully Connected Spiking Neural Network",
-        out_path="feedforward_spikes.png",
-    )
+# convert lists to tensors
+mem2_rec = torch.stack(mem2_rec)
+spk1_rec = torch.stack(spk1_rec)
+spk2_rec = torch.stack(spk2_rec)
 
 
-if __name__ == "__main__":
-    run_network()
+plot_snn_spikes(spk_in, spk1_rec, spk2_rec, "Fully Connected Spiking Neural Network")
+from IPython.display import HTML
+
+fig, ax = plt.subplots(facecolor='w', figsize=(12, 7))
+labels=['0', '1', '2', '3', '4', '5', '6', '7', '8','9']
+spk2_rec = spk2_rec.squeeze(1).detach().cpu()
+
+# plt.rcParams['animation.ffmpeg_path'] = 'C:\\path\\to\\your\\ffmpeg.exe'
+
+#  Plot spike count histogram
+anim = splt.spike_count(spk2_rec, fig, ax, labels=labels, animate=True)
+HTML(anim.to_html5_video())
+anim.save("spike_bar.mp4")
